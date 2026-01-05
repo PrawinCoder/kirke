@@ -1,0 +1,296 @@
+openapi: 3.0.3
+
+info:
+  title: Timesheet Management API
+  description: Production-grade API for managing employee timesheets, approvals, and reports
+  version: 1.0.0
+  contact:
+    name: Backend Team
+    email: backend@company.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Timesheets
+    description: Timesheet operations
+  - name: Reports
+    description: Reporting APIs
+
+paths:
+  /timesheets:
+    post:
+      tags: [Timesheets]
+      summary: Submit a new timesheet entry
+      operationId: createTimesheet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimesheetCreateRequest'
+      responses:
+        '201':
+          description: Timesheet created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimesheetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [Timesheets]
+      summary: List all timesheets with filters
+      operationId: listTimesheets
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: List of timesheets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, totalElements, totalPages]
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimesheetResponse'
+                  totalElements:
+                    type: integer
+                    minimum: 0
+                  totalPages:
+                    type: integer
+                    minimum: 0
+
+  /timesheets/{id}:
+    get:
+      tags: [Timesheets]
+      summary: Get timesheet by ID
+      operationId: getTimesheetById
+      parameters:
+        - $ref: '#/components/parameters/TimesheetId'
+      responses:
+        '200':
+          description: Timesheet details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimesheetResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Timesheets]
+      summary: Update a timesheet entry
+      operationId: updateTimesheet
+      parameters:
+        - $ref: '#/components/parameters/TimesheetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimesheetUpdateRequest'
+      responses:
+        '200':
+          description: Timesheet updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimesheetResponse'
+
+    delete:
+      tags: [Timesheets]
+      summary: Soft delete a timesheet entry
+      operationId: deleteTimesheet
+      parameters:
+        - $ref: '#/components/parameters/TimesheetId'
+      responses:
+        '204':
+          description: Timesheet soft-deleted
+
+  /timesheets/{id}/approve:
+    post:
+      tags: [Timesheets]
+      summary: Approve a timesheet
+      operationId: approveTimesheet
+      parameters:
+        - $ref: '#/components/parameters/TimesheetId'
+      responses:
+        '200':
+          description: Timesheet approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimesheetResponse'
+
+  /reports:
+    get:
+      tags: [Reports]
+      summary: Generate timesheet reports
+      operationId: generateReports
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [WEEKLY, MONTHLY, PROJECT]
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+
+components:
+  parameters:
+    TimesheetId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    TimesheetCreateRequest:
+      type: object
+      required: [userId, projectId, workDate, hours]
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        workDate:
+          type: string
+          format: date
+        hours:
+          type: number
+          format: double
+          minimum: 0.25
+          maximum: 24
+        description:
+          type: string
+          maxLength: 500
+
+    TimesheetUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        hours:
+          type: number
+          format: double
+          minimum: 0.25
+          maximum: 24
+        description:
+          type: string
+          maxLength: 500
+
+    TimesheetResponse:
+      type: object
+      required:
+        - id
+        - userId
+        - projectId
+        - workDate
+        - hours
+        - status
+        - deleted
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        workDate:
+          type: string
+          format: date
+        hours:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [SUBMITTED, APPROVED]
+        deleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ReportResponse:
+      type: object
+      required: [type, generatedAt, data]
+      properties:
+        type:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        data:
+          type: array
+          items:
+            type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request payload or parameters
+
+    NotFound:
+      description: Resource not found
